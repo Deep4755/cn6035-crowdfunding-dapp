@@ -1,0 +1,30 @@
+# Docker Compose file for easy local development
+# Run both the frontend and a local blockchain node together
+# Usage: docker-compose up
+
+version: '3.8'
+
+services:
+  # Frontend service
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"  # Map port 3000 from container to host
+    environment:
+      - NODE_ENV=production
+    # Uncomment the line below if you need to connect to a local Hardhat node
+    # network_mode: "host"  # Allows container to access localhost services
+
+  # Optional: Uncomment below to run Hardhat node in Docker
+  # Note: This is more complex and usually you run Hardhat node separately
+  # hardhat:
+  #   image: node:18-alpine
+  #   working_dir: /app
+  #   volumes:
+  #     - .:/app
+  #   command: npx hardhat node
+  #   ports:
+  #     - "8545:8545"
+

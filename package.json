@@ -1,0 +1,26 @@
+{
+  "name": "crowd-funding-dapp",
+  "version": "1.0.0",
+  "description": "A decentralized crowdfunding DApp built with Solidity, Hardhat, Next.js and ethers.js. CN6035 coursework submission.",
+  "main": "index.js",
+  "scripts": {
+    "test": "hardhat test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Deep4755/cn6035-crowdfunding-dapp.git"
+  },
+  "homepage": "https://YOUR_LIVE_DEPLOYMENT_URL",
+  "keywords": ["blockchain", "crowdfunding", "solidity", "nextjs", "web3", "ethereum"],
+  "author": "Sandeep",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.0",
+    "dotenv": "^16.6.1",
+    "hardhat": "^2.10.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.9.2"
+  }
+}

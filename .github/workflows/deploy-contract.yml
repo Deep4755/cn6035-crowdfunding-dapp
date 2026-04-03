@@ -1,0 +1,45 @@
+# GitHub Actions Deployment Workflow for Smart Contract
+# This workflow deploys the contract to Sepolia testnet
+# WARNING: Only run this manually when you want to deploy
+# You need to set up GitHub Secrets first (see README)
+
+name: Deploy Contract to Sepolia
+
+# Only run when manually triggered (for safety)
+on:
+  workflow_dispatch:  # Manual trigger only
+
+# Jobs to run
+jobs:
+  deploy:
+    name: Deploy to Sepolia Testnet
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+      
+      # Step 4: Compile contracts
+      - name: Compile contracts
+        run: npx hardhat compile
+      
+      # Step 5: Deploy to Sepolia
+      # This uses secrets stored in GitHub (not visible in code)
+      - name: Deploy to Sepolia
+        env:
+          SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+        run: npx hardhat run scripts/deploy.ts --network sepolia
+

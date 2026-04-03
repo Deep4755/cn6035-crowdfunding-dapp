@@ -1,0 +1,78 @@
+# GitHub Actions CI Workflow
+# This workflow runs automatically when you push code or create a pull request
+# It checks that your code compiles, tests pass, and follows style guidelines
+
+name: CI
+
+# When this workflow should run
+on:
+  # Run on push to main branch
+  push:
+    branches: [ main ]
+  # Run on pull requests to main branch
+  pull_request:
+    branches: [ main ]
+
+# Jobs define what the workflow will do
+jobs:
+  # Job 1: Test Smart Contracts
+  test-contracts:
+    name: Test Smart Contracts
+    runs-on: ubuntu-latest  # Use Ubuntu Linux virtual machine
+    
+    steps:
+      # Step 1: Checkout code (get your code from GitHub)
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Setup Node.js (install Node.js version 18)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'  # Cache npm packages for faster builds
+      
+      # Step 3: Install dependencies for smart contracts
+      - name: Install dependencies
+        run: npm install
+      
+      # Step 4: Compile smart contracts (check for syntax errors)
+      - name: Compile contracts
+        run: npx hardhat compile
+      
+      # Step 5: Run tests (verify contracts work correctly)
+      - name: Run tests
+        run: npm test
+
+  # Job 2: Lint and Build Frontend
+  lint-frontend:
+    name: Lint Frontend Code
+    runs-on: ubuntu-latest
+    
+    steps:
+      # Step 1: Checkout code
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      # Step 3: Install frontend dependencies
+      - name: Install frontend dependencies
+        working-directory: ./frontend
+        run: npm install
+      
+      # Step 4: Run linter (check code style and find errors)
+      - name: Run linter
+        working-directory: ./frontend
+        run: npm run lint
+      
+      # Step 5: Build frontend (verify it compiles without errors)
+      - name: Build frontend
+        working-directory: ./frontend
+        run: npm run build
+

@@ -1,0 +1,45 @@
+# Files and folders Docker should ignore when building
+# This makes the build faster and the image smaller
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+.next
+out
+dist
+
+# Environment files
+.env
+.env.local
+.env*.local
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# Git
+.git
+.gitignore
+
+# Documentation
+README.md
+CONTRIBUTING.md
+docs
+
+# Test files
+test
+*.test.ts
+*.test.js
+
+# CI/CD
+.github
+
+# Other
+.DS_Store
+*.log
+

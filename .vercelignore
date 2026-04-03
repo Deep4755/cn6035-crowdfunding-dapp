@@ -1,0 +1,14 @@
+node_modules
+cache
+artifacts
+dist
+.env
+typechain-types
+contracts
+scripts
+test
+hardhat.config.ts
+package.json
+package-lock.json
+tsconfig.json
+
