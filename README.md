@@ -154,7 +154,7 @@ crowd-funding-DApp/
 ### 1. Clone the repository
 
 ```bash
-git https://github.com/Deep4755/cn6035-crowdfunding-dapp.git
+git clone https://github.com/Deep4755/cn6035-crowdfunding-dapp.git
 cd cn6035-crowdfunding-dapp
 ```
 
