@@ -1,11 +1,9 @@
 # Crowdfund dApp
 
-A decentralized crowdfunding platform built on Ethereum as part of the CN6035 module coursework. This project is an adapted and extended version of an open-source crowdfunding DApp, with significant UI improvements, additional features, and full Sepolia testnet deployment.
+A decentralised crowdfunding application built on Ethereum as part of the CN6035 (Mobile and Distributed Systems) module coursework. This project is an adapted and extended version of an open-source crowdfunding DApp, with significant improvements to the smart contract, UI, transaction handling, and creator management features.
 
-
-**Sepolia Contract**: [`0x26d696a1A59d0d03558832a86e8553480c35bea7`](https://sepolia.etherscan.io/address/0x26d696a1A59d0d03558832a86e8553480c35bea7)
-
-> This project was adapted and extended for CN6035 coursework. Original open-source base was used as a starting point; all UI, UX improvements, transaction feedback system, contribution modal, withdraw/refund flows, dashboard, and documentation were built as part of this submission.
+> **CN6035 Coursework Submission**
+> Original open-source base was used as a starting point. All UI/UX improvements, transaction feedback system, contribution modal, withdraw/refund flows, reward tiers, cancel campaign feature, dashboard, responsive design, and documentation were built as part of this submission.
 
 ---
 
@@ -17,9 +15,8 @@ A decentralized crowdfunding platform built on Ethereum as part of the CN6035 mo
 - [Folder Structure](#folder-structure)
 - [Local Setup](#local-setup)
 - [Wallet Connection](#wallet-connection)
-- [Sepolia Deployment](#sepolia-deployment)
 - [User Flows](#user-flows)
-- [Screenshots](#screenshots)
+- [Assessment Relevance](#assessment-relevance)
 - [Scripts Reference](#scripts-reference)
 - [Troubleshooting](#troubleshooting)
 
@@ -27,15 +24,16 @@ A decentralized crowdfunding platform built on Ethereum as part of the CN6035 mo
 
 ## Overview
 
-Crowdfund dApp is a full-stack Web3 application that demonstrates how smart contracts can replace traditional crowdfunding intermediaries by enforcing campaign rules on-chain.
+Crowdfund dApp is a full-stack Web3 application that demonstrates how smart contracts can replace traditional crowdfunding intermediaries by enforcing campaign rules on-chain without a central authority.
 
-- Campaign creators set a funding goal and deadline
-- Contributors pledge ETH during the active period
+- Campaign creators set a funding goal, start time, and deadline
+- Contributors pledge ETH during the active campaign period
 - If the goal is met, the creator can withdraw the funds
 - If the goal is not met, contributors can claim a full refund
-- Reward tiers can be added to incentivise early backers
+- Reward tiers can be added by the creator before the campaign starts
+- Creators can cancel a campaign before it starts if no contributions exist
 
-The frontend connects to the smart contract via MetaMask and ethers.js, and works on both a local Hardhat network and the Sepolia testnet.
+The application was developed and tested locally using the **Hardhat** development blockchain. The frontend connects to the smart contract via **MetaMask** and **ethers.js**.
 
 ---
 
@@ -43,73 +41,74 @@ The frontend connects to the smart contract via MetaMask and ethers.js, and work
 
 | Feature | Description |
 |---|---|
-| Create Campaign | Set goal, start/end time, and a project description URL |
+| Create Campaign | Set goal, start delay, duration, and a project description URL |
 | Browse Campaigns | View all campaigns with live status, progress bars, and countdowns |
-| Contribute Modal | Pledge ETH via a dedicated modal with quick-amount buttons and validation |
-| Reward Tiers | Creators add tiered rewards with minimum contribution thresholds |
+| Contribute | Pledge ETH via a modal with input validation and quick-amount buttons |
+| Reward Tiers | Creators add tiered rewards with minimum contribution thresholds before campaign starts |
 | Withdraw Funds | Creator withdraws when goal is met and campaign has ended |
 | Claim Refund | Contributor reclaims ETH if campaign ends without reaching goal |
+| Cancel Campaign | Creator can cancel an upcoming campaign with zero contributions |
 | Transaction Feedback | 3-state toast system: pending → confirming → success/error |
-| Dashboard | Personal stats, trending campaigns, recent activity |
+| Dashboard | Personal stats, trending campaigns, and recent activity |
 | My Contributions | Table with status, progress bars, and contextual action buttons |
-| My Campaigns | Table with withdraw button, copy link, and campaign management |
-| My Rewards | Cards showing earned reward tiers and claim status |
-| Blockchain Info | Live card showing wallet, balance, network badge, contract address |
+| My Campaigns | Table with withdraw, add reward, cancel, and copy link actions |
+| My Rewards | Cards showing earned reward tiers per campaign |
+| Wallet Connect | MetaMask integration with network detection and auto-switch prompt |
 | Guest Mode | Browse campaigns without connecting a wallet |
-| Multi-network | Auto-detects Sepolia vs localhost and uses the correct contract |
+| Responsive Design | Fully responsive layout for mobile and desktop |
 
 ---
 
 ## Tech Stack
 
 ### Smart Contract
-| Tool | Version |
+| Tool | Purpose |
 |---|---|
-| Solidity | 0.8.28 |
-| Hardhat | 2.10.0 |
-| TypeScript | 5 |
+| Solidity 0.8.28 | Smart contract language |
+| Hardhat 2.x | Local blockchain, compile, test, deploy |
+| TypeScript | Deployment and test scripts |
 
 ### Frontend
-| Tool | Version |
+| Tool | Purpose |
 |---|---|
-| Next.js | 15.5.2 |
-| React | 19.1.0 |
-| TypeScript | 5 |
-| Tailwind CSS | 4.1.12 |
-| ethers.js | 6.15.0 |
-| react-hot-toast | 2.6.0 |
+| Next.js 15 | React framework with App Router |
+| React 19 | UI component library |
+| TypeScript | Type-safe frontend code |
+| Tailwind CSS | Utility-first styling |
+| ethers.js 6 | Blockchain interaction and wallet connection |
+| react-hot-toast | Transaction feedback notifications |
 
 ---
 
 ## Folder Structure
 
 ```
-crowd-funding-DApp/
+cn6035-crowdfunding-dapp/
 │
 ├── contracts/
-│   └── Crowdfund.sol               # Smart contract
+│   └── Crowdfund.sol               # Smart contract (all on-chain logic)
 │
 ├── scripts/
-│   └── deploy.ts                   # Deployment script (auto-saves address)
+│   └── deploy.ts                   # Deployment script (auto-saves address to frontend)
 │
 ├── test/
 │   └── Crowdfund.test.ts           # Contract unit tests
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                # Main app page
-│   │   ├── layout.tsx              # Root layout + metadata
+│   │   ├── page.tsx                # Main application page
+│   │   ├── layout.tsx              # Root layout
 │   │   └── globals.css
 │   │
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── WalletConnect.tsx
-│   │   │   ├── CampaignCard.tsx
-│   │   │   ├── CampaignDetailModal.tsx
-│   │   │   ├── CreateCampaignModal.tsx
-│   │   │   ├── ContributeModal.tsx
-│   │   │   ├── AddRewardModal.tsx
-│   │   │   ├── BlockchainInfo.tsx
+│   │   │   ├── WalletConnect.tsx       # Wallet connection button
+│   │   │   ├── CampaignCard.tsx        # Campaign card with actions
+│   │   │   ├── CampaignDetailModal.tsx # Campaign detail view
+│   │   │   ├── CreateCampaignModal.tsx # Create campaign form
+│   │   │   ├── ContributeModal.tsx     # Contribution form
+│   │   │   ├── AddRewardModal.tsx      # Add reward tier form
+│   │   │   ├── BlockchainInfo.tsx      # Live network/wallet info card
 │   │   │   └── Footer.tsx
 │   │   │
 │   │   ├── lib/
@@ -117,26 +116,20 @@ crowd-funding-DApp/
 │   │   │
 │   │   ├── utils/
 │   │   │   ├── txToast.ts          # Reusable 3-state transaction toast
-│   │   │   ├── errorHandler.ts     # Friendly error messages
-│   │   │   └── userMapping.ts
+│   │   │   ├── errorHandler.ts     # User-friendly error messages
+│   │   │   └── userMapping.ts      # Address display helpers
 │   │   │
 │   │   ├── constants/
-│   │   │   ├── Crowdfund.json
-│   │   │   ├── deployments.localhost.json
-│   │   │   ├── deployments.sepolia.json
-│   │   │   └── sampleCampaigns.ts
+│   │   │   ├── Crowdfund.json              # Contract ABI
+│   │   │   ├── deployments.localhost.json  # Local contract address
+│   │   │   └── sampleCampaigns.ts          # Demo campaign data
 │   │   │
-│   │   └── types.ts
+│   │   └── types.ts                # Shared TypeScript types
 │   │
 │   └── package.json
 │
-├── docs/
-│   ├── SEPOLIA_DEPLOYMENT.md
-│   ├── DEPLOYMENT.md
-│   └── GET_SEPOLIA_ETH.md
-│
 ├── hardhat.config.ts
-├── .env.example
+├── package.json
 └── README.md
 ```
 
@@ -148,7 +141,7 @@ crowd-funding-DApp/
 
 - Node.js >= 18
 - npm
-- MetaMask browser extension
+- MetaMask browser extension installed
 - Git
 
 ### 1. Clone the repository
@@ -161,8 +154,10 @@ cd cn6035-crowdfunding-dapp
 ### 2. Install dependencies
 
 ```bash
+# Root dependencies (Hardhat, contract tools)
 npm install
 
+# Frontend dependencies
 cd frontend
 npm install
 cd ..
@@ -174,17 +169,17 @@ cd ..
 npx hardhat node
 ```
 
-Keep this terminal open.
+Keep this terminal open. It runs a local Ethereum node at `http://127.0.0.1:8545` and prints 20 test accounts with private keys.
 
 ### 4. Deploy the contract
 
-In a new terminal:
+Open a new terminal:
 
 ```bash
 npx hardhat run scripts/deploy.ts --network localhost
 ```
 
-Address is saved automatically to `frontend/src/constants/deployments.localhost.json`.
+The contract address is saved automatically to `frontend/src/constants/deployments.localhost.json`.
 
 ### 5. Start the frontend
 
@@ -193,13 +188,13 @@ cd frontend
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
 ## Wallet Connection
 
-### Add Localhost Network to MetaMask
+### Add Hardhat Localhost to MetaMask
 
 | Field | Value |
 |---|---|
@@ -208,90 +203,91 @@ Open [http://localhost:3000](http://localhost:3000).
 | Chain ID | `31337` |
 | Currency Symbol | ETH |
 
-Copy a private key from the `npx hardhat node` output and import it into MetaMask.
+### Import a test account
 
----
+Copy any private key from the `npx hardhat node` terminal output and import it into MetaMask. Each test account has 10,000 test ETH.
 
-## Sepolia Deployment
-
-For full details see [docs/SEPOLIA_DEPLOYMENT.md](docs/SEPOLIA_DEPLOYMENT.md).
-
-### Quick steps
-
-```bash
-# 1. Create .env in project root
-SEPOLIA_RPC_URL=https://eth-sepolia.g.alchemy.com/v2/YOUR_API_KEY
-PRIVATE_KEY=your_wallet_private_key
-
-# 2. Deploy
-npx hardhat run scripts/deploy.ts --network sepolia
-```
-
-### Current deployment
-
-```
-Contract : 0x26d696a1A59d0d03558832a86e8553480c35bea7
-Network  : Sepolia (Chain ID 11155111)
-Etherscan: https://sepolia.etherscan.io/address/0x26d696a1A59d0d03558832a86e8553480c35bea7
-```
-
-Switch MetaMask to Sepolia — the frontend auto-detects the network.
+> **Important:** Every time you restart `npx hardhat node`, the blockchain resets. You must redeploy the contract and re-import accounts if needed.
 
 ---
 
 ## User Flows
 
 ### Connect Wallet
-1. Click **Connect Wallet** in the navbar
-2. Approve in MetaMask
-3. Address, balance, and network badge appear
-
-### Browse Campaigns
-1. Click **Browse Campaigns** in the sidebar
-2. Click any card to open the detail modal
+1. Click **Connect Wallet** in the top-right navbar
+2. Approve the connection in MetaMask
+3. Your address, balance, and network badge appear
 
 ### Create Campaign
-1. Click **Create Campaign**
-2. Fill in goal, duration, and project URL
-3. Confirm in MetaMask — 3-state toast feedback shown
+1. Click **+ Create Campaign** in the sidebar
+2. Fill in: funding goal (ETH), start delay (minutes), duration (minutes), project URL
+3. Click **Create Campaign** and confirm in MetaMask
+4. Campaign appears in Browse Campaigns and My Campaigns
 
-### Contribute
-1. Click **Contribute** on any active campaign card
-2. Modal opens with campaign info and ETH input
-3. Enter amount or use quick-amount buttons
-4. Confirm — transaction feedback shown
+### Add Reward Tier (before campaign starts)
+1. Go to **My Campaigns**
+2. Find a campaign with status **Not Started**
+3. Click **🎁 Add Reward** — fill in title, description, minimum contribution, quantity
+4. Confirm in MetaMask
+
+### Contribute to a Campaign
+1. Go to **Browse Campaigns**
+2. Click **Contribute** on an active campaign
+3. Enter ETH amount (must meet reward minimum if selecting a reward tier)
+4. Confirm in MetaMask
 
 ### Withdraw Funds (Creator)
 - Campaign must have ended with goal met
-- Green **Withdraw** button appears on the card and in the detail modal
+- Go to **My Campaigns** → click **Withdraw**
+- Or open the campaign detail modal → click **Withdraw**
 
 ### Claim Refund (Contributor)
-- Campaign must have ended without reaching goal
-- Amber **Claim Refund** button appears on the card and in the detail modal
+- Campaign must have ended without reaching the goal
+- Go to **My Contributions** → click **Claim Refund**
 
-### Add Reward Tiers
-- Only available before campaign starts
-- Click **Add Reward** in My Campaigns
+### Cancel Campaign (Creator)
+- Only available before the campaign starts AND if no contributions exist
+- Go to **My Campaigns** → click **Cancel**
 
 ---
 
-## Screenshots
+## Assessment Relevance
 
-> Add your screenshots before final submission.
+This section maps the project work to the CN6035 marking criteria.
 
-| Page | File |
-|---|---|
-| Landing / Connect Wallet | `docs/screenshots/01-landing.png` |
-| Browse Campaigns | `docs/screenshots/02-browse.png` |
-| Campaign Detail Modal | `docs/screenshots/03-detail.png` |
-| Create Campaign Modal | `docs/screenshots/04-create.png` |
-| Contribute Modal | `docs/screenshots/05-contribute.png` |
-| Dashboard | `docs/screenshots/06-dashboard.png` |
-| My Contributions | `docs/screenshots/07-contributions.png` |
-| My Campaigns | `docs/screenshots/08-my-campaigns.png` |
-| My Rewards | `docs/screenshots/09-rewards.png` |
-| Withdraw / Refund | `docs/screenshots/10-withdraw-refund.png` |
-| Blockchain Info Card | `docs/screenshots/11-blockchain-info.png` |
+### Back-end Implementation (20 marks)
+The smart contract (`contracts/Crowdfund.sol`) implements all core logic on-chain:
+- `createCampaign()` — stores campaign data with goal, timeline, and metadata
+- `pledge()` — accepts ETH contributions and tracks per-user amounts
+- `withdraw()` — transfers funds to creator when goal is met after deadline
+- `refund()` — returns ETH to contributor if goal was not met
+- `addReward()` — creator adds reward tiers before campaign starts
+- `cancelCampaign()` — creator cancels an upcoming campaign with no contributions
+- `getRewards()` / `getUserContribution()` — read functions for frontend queries
+
+All business rules are enforced in Solidity with `require` statements, meaning no central server can override them.
+
+### Blockchain Interaction (20 marks)
+- The application connects to a local **Hardhat** blockchain (Chain ID 31337) for development and testing
+- MetaMask is used for wallet connection, transaction signing, and network switching
+- ethers.js handles all contract calls, event reading, and balance queries
+- The frontend auto-detects the connected network and shows a warning if the wrong network is selected
+- All transactions go through a 3-state feedback system (pending → confirming → success/error)
+
+### Front-end Implementation (20 marks)
+- Built with **Next.js 15**, **React 19**, and **TypeScript**
+- Fully responsive layout using **Tailwind CSS** (works on mobile and desktop)
+- Modular component architecture: WalletConnect, CampaignCard, modals, dashboard
+- Real-time campaign status and countdown timers without page blinking
+- Guest mode allows browsing without a wallet connection
+- All blockchain errors are caught and shown as user-friendly messages
+
+### Code Quality and Version Control (10 marks)
+- TypeScript used throughout for type safety
+- ESLint configured for code quality checks (`npm run lint`)
+- Utility modules separate concerns: `txToast.ts`, `errorHandler.ts`, `web3.ts`
+- Git version control with meaningful commit messages
+- Public GitHub repository: [github.com/Deep4755/cn6035-crowdfunding-dapp](https://github.com/Deep4755/cn6035-crowdfunding-dapp)
 
 ---
 
@@ -299,52 +295,46 @@ Switch MetaMask to Sepolia — the frontend auto-detects the network.
 
 ```bash
 # Smart contract
-npx hardhat compile
-npx hardhat test
-npx hardhat node
-npx hardhat run scripts/deploy.ts --network localhost
-npx hardhat run scripts/deploy.ts --network sepolia
+npx hardhat compile                                        # Compile contract
+npx hardhat test                                           # Run unit tests
+npx hardhat node                                           # Start local blockchain
+npx hardhat run scripts/deploy.ts --network localhost      # Deploy locally
 
 # Frontend
 cd frontend
-npm run dev      # http://localhost:3000
-npm run build
-npm run lint
+npm run dev      # Start dev server at http://localhost:3000
+npm run build    # Production build
+npm run lint     # Run ESLint
 ```
 
 ---
 
 ## Troubleshooting
 
-**"Contract not available"**
-- Make sure `npx hardhat node` is running
-- Deploy with `npx hardhat run scripts/deploy.ts --network localhost`
-- Check `deployments.localhost.json` has a non-zero address
-- Confirm MetaMask is on Hardhat Localhost (Chain ID 31337)
+**"Contract not available" error**
+- Make sure `npx hardhat node` is running in a terminal
+- Run `npx hardhat run scripts/deploy.ts --network localhost`
+- Check that `frontend/src/constants/deployments.localhost.json` has a valid address
+- Confirm MetaMask is on **Hardhat Localhost** (Chain ID 31337)
 
 **MetaMask shows wrong network**
-- Switch to Hardhat Localhost for local dev, or Sepolia for testnet
+- Click the yellow **"Switch to Localhost"** banner in the app, or switch manually in MetaMask
+
+**"RPC endpoint returned too many errors"**
+- The Hardhat node has stopped — restart it with `npx hardhat node` and redeploy
+
+**Transaction pending forever**
+- Open MetaMask → Activity → Speed Up or Cancel the stuck transaction
 
 **Insufficient funds**
-- For localhost: import a Hardhat test account (10,000 ETH)
-- For Sepolia: use a faucet — see [docs/GET_SEPOLIA_ETH.md](docs/GET_SEPOLIA_ETH.md)
+- Import a Hardhat test account using a private key from the `npx hardhat node` output
+- Each test account has 10,000 test ETH
 
-**Transaction rejected silently**
-- Open browser DevTools → Console for the full error
-
----
-
-## Documentation
-
-| File | Contents |
-|---|---|
-| [docs/SEPOLIA_DEPLOYMENT.md](docs/SEPOLIA_DEPLOYMENT.md) | Sepolia deploy guide and proof checklist |
-| [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) | Vercel frontend deployment guide |
-| [docs/GET_SEPOLIA_ETH.md](docs/GET_SEPOLIA_ETH.md) | How to get Sepolia test ETH |
+**Rewards not showing in My Rewards**
+- You must contribute to a campaign that has reward tiers set up
+- Your contribution must meet or exceed the reward's minimum amount
+- Rewards are only added before a campaign starts — create a new campaign with a start delay
 
 ---
 
-## CN6035 Module
-
-This project was developed and extended as part of the CN6035 coursework to demonstrate practical blockchain application development using Solidity, Hardhat, and a modern React/Next.js frontend.
-"# cn6035-crowdfunding-dapp" 
+*Developed as part of CN6035 — Mobile and Distributed Systems coursework.*
