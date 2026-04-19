@@ -1,27 +1,4 @@
-Improve the contribute button in my crowdfunding DApp.
-
-Requirements:
-- Replace direct contribution with a modal
-- Modal should include:
-  - Campaign title
-  - Goal and pledged info
-  - Input field for ETH amount
-  - Validation (must be > 0)
-  - Confirm and Cancel buttons
-
-Behavior:
-- On confirm:
-  - call existing contribute function
-  - show transaction feedback
-- Refresh data after success
-
-Design:
-- Clean centered modal
-- Proper spacing
-- Loading state during transaction
-
-Important:
-- Do not break smart contract integration// SPDX-License-Identifier: MIT
+// SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
 contract Crowdfund {
@@ -53,6 +30,7 @@ contract Crowdfund {
 
     // events
     event CampaignCreated(uint256 indexed id, address indexed creator, uint256 goal, uint256 startAt, uint256 endAt);
+    event CampaignCancelled(uint256 indexed id, address indexed creator);
     event Pledged(uint256 indexed id, address indexed contributor, uint256 amount);
     event Withdrawn(uint256 indexed id, uint256 amount);
     event Refunded(uint256 indexed id, address indexed contributor, uint256 amount);
@@ -83,6 +61,22 @@ contract Crowdfund {
 
         emit CampaignCreated(campaignCount, msg.sender, _goal, _startAt, _endAt);
         return campaignCount;
+    }
+
+    // cancel campaign — only before it starts and only if no one has pledged
+    function cancelCampaign(uint256 _campaignId) external {
+        Campaign storage c = campaigns[_campaignId];
+        require(c.creator != address(0), "Campaign does not exist");
+        require(msg.sender == c.creator, "Only creator can cancel");
+        require(block.timestamp < c.startAt, "Campaign already started");
+        require(c.pledged == 0, "Cannot cancel: contributions exist");
+
+        // Zero out the campaign (marks it as cancelled without deleting storage)
+        c.goal = 0;
+        c.startAt = 0;
+        c.endAt = 0;
+
+        emit CampaignCancelled(_campaignId, msg.sender);
     }
 
     // reward functions

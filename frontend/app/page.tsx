@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { ethers } from "ethers";
-import { getCrowdfundContract, getCrowdfundReadContract, getBrowserProvider } from "@/lib/web3";
+import { getCrowdfundContract, getCrowdfundReadContract, getBrowserProvider, getNetworkInfo, switchToLocalhost, verifyContractConnection } from "@/lib/web3";
 import { parseTransactionError, checkBalance } from "@/utils/errorHandler";
 import { txToast } from "@/utils/txToast";
 import WalletConnect from "@/components/WalletConnect";
@@ -33,7 +33,6 @@ export default function Home() {
   const [userAccount, setUserAccount] = useState<string | null>(null);
   const [userBalance, setUserBalance] = useState<string>("0");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [currentTime, setCurrentTime] = useState<number>(0);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isAddRewardModalOpen, setIsAddRewardModalOpen] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
@@ -48,6 +47,13 @@ export default function Home() {
   const [totalContributed, setTotalContributed] = useState<bigint>(0n);
   const [isLoadingUserData, setIsLoadingUserData] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState<boolean>(false);
+  const [networkInfo, setNetworkInfo] = useState<{chainId: string; name: string} | null>(null);
+  const [showNetworkBanner, setShowNetworkBanner] = useState(false);
+
+  // currentTime as a ref — ticks every second without triggering re-renders
+  const currentTimeRef = useRef<number>(Math.floor(Date.now() / 1000));
+  // Read-only derived value used in render — always fresh from ref
+  const currentTime = currentTimeRef.current;
   
   // Store sample campaigns separately so they don't get regenerated on every load
   const [sampleCampaigns] = useState<Campaign[]>(() => getSampleCampaigns(Math.floor(Date.now() / 1000)));
@@ -56,25 +62,53 @@ export default function Home() {
   const [lastKnownPledged, setLastKnownPledged] = useState<Record<number, bigint>>({});
 
   // Initialize time only on client side to prevent hydration errors
+  // Ref ticks every second — no state update = no re-render
   useEffect(() => {
-    setCurrentTime(Math.floor(Date.now() / 1000));
+    currentTimeRef.current = Math.floor(Date.now() / 1000);
     const interval = setInterval(() => {
-      setCurrentTime(Math.floor(Date.now() / 1000));
+      currentTimeRef.current = Math.floor(Date.now() / 1000);
     }, 1000);
     return () => clearInterval(interval);
   }, []);
 
-  // Load campaigns on mount and when account, tab, or guest mode changes
-  // Note: currentTime is NOT in dependencies to prevent infinite refresh
-  // Campaigns don't need to reload every second - time updates happen in render
+  // Check network status — runs once on mount, then on chain change only
   useEffect(() => {
-    if (currentTime > 0) {
-      loadCampaigns();
+    let mounted = true;
+    const checkNetwork = async () => {
+      try {
+        const info = await getNetworkInfo();
+        if (!mounted) return;
+        setNetworkInfo(info);
+        if (info) {
+          const chainId = parseInt(info.chainId, 16);
+          setShowNetworkBanner(chainId !== 31337 && chainId !== 1337);
+        }
+      } catch {
+        // ignore network check errors
+      }
+    };
+    
+    checkNetwork();
+    
+    if (typeof window !== "undefined" && (window as any).ethereum) {
+      const handleChainChanged = () => { checkNetwork(); };
+      (window as any).ethereum.on('chainChanged', handleChainChanged);
+      return () => {
+        mounted = false;
+        (window as any).ethereum.removeListener('chainChanged', handleChainChanged);
+      };
     }
+    return () => { mounted = false; };
+  }, []);
+
+  // Load campaigns on mount and when account, tab, or guest mode changes
+  useEffect(() => {
+    loadCampaigns();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userAccount, activeTab, isGuestMode]);
 
   async function loadCampaigns() {
+    if (isLoading) return; // Prevent concurrent calls
     setIsLoading(true);
     try {
       // Always load sample campaigns first (for guest mode and demonstration)
@@ -161,11 +195,8 @@ export default function Home() {
         return await contract.refunded(campaignId, user);
       }
     } catch {}
-    // Fallback heuristic: if campaign failed and on-chain contribution is 0
-    try {
-      const contrib: bigint = await contract.getUserContribution(campaignId, user);
-      return contrib === 0n;
-    } catch {}
+    // Fallback heuristic: only mark as refunded if campaign actually failed
+    // (don't use contribution=0 as a proxy — it's unreliable)
     return false;
   }
 
@@ -260,79 +291,65 @@ export default function Home() {
       for (const uc of contributions) {
         if (!uc.campaign) continue;
         const cid = uc.campaign.id;
-        let campaignRewards: Reward[] | null = null;
+        let campaignRewards: Reward[] = [];
 
-        // Try to get campaign rewards
+        // Fetch rewards for this campaign from contract
         try {
-          if (typeof contract.getRewards === 'function') {
-            campaignRewards = await contract.getRewards(cid);
+          const raw = await contract.getRewards(cid);
+          if (Array.isArray(raw)) {
+            campaignRewards = raw as Reward[];
           }
-        } catch {}
-        if (!campaignRewards) {
-          try {
-            if (typeof contract.getCampaignRewards === 'function') {
-              campaignRewards = await contract.getCampaignRewards(cid);
-            }
-          } catch {}
+        } catch (e) {
+          console.log(`Could not load rewards for campaign ${cid}:`, e);
         }
 
-        if (Array.isArray(campaignRewards)) {
-          for (const rw of campaignRewards) {
-            // Check if user meets the minimum contribution threshold
-            const reward = rw as Reward;
-            const threshold = reward.minimumContribution ?? 0n;
-            const minContrib = typeof threshold === 'bigint' ? threshold : BigInt(String(threshold));
-            
-            if (uc.amount >= minContrib) {
-              // Determine reward status based on campaign and user state
-              let rewardStatus: 'eligible' | 'missed' | 'claimed' = 'eligible';
-              let claimed = false;
-              
-              // Check if user has already claimed this reward
-              try {
-                if (typeof contract.isRewardClaimed === 'function') {
-                  claimed = await contract.isRewardClaimed(cid, 0, userAccount);
-                } else if (typeof contract.rewardClaimed === 'function') {
-                  claimed = await contract.rewardClaimed(cid, 0, userAccount);
-                }
-              } catch {}
-              
-              if (claimed) {
-                rewardStatus = 'claimed';
-              } else if (uc.refunded) {
-                // User refunded their contribution, so they missed the reward
-                rewardStatus = 'missed';
-              } else if (uc.campaign.claimed && uc.campaign.pledged >= uc.campaign.goal) {
-                // Campaign succeeded and creator withdrew funds - reward is automatically claimed
-                rewardStatus = 'claimed';
-              } else if (Number(uc.campaign.endAt) <= currentTime && uc.campaign.pledged < uc.campaign.goal) {
-                // Campaign failed (goal not met after end) - user missed the reward
-                rewardStatus = 'missed';
-              } else {
-                // Campaign is still active or succeeded but not yet withdrawn - reward is eligible
-                rewardStatus = 'eligible';
-              }
-              
-              rewards.push({
-                campaignId: cid,
-                campaign: uc.campaign,
-                reward: rw,
-                eligibleAmount: uc.amount,
-                claimed,
-                status: rewardStatus,
-              });
+        // No rewards on this campaign — skip
+        if (campaignRewards.length === 0) continue;
+
+        for (const rw of campaignRewards) {
+          const reward = rw as Reward;
+          // Safely convert minimumContribution to bigint regardless of what the contract returns
+          let minContrib = 0n;
+          try {
+            const raw = reward.minimumContribution;
+            minContrib = typeof raw === 'bigint' ? raw : BigInt(String(raw ?? '0'));
+          } catch { minContrib = 0n; }
+
+          // User qualifies if their contribution meets the minimum
+          if (uc.amount >= minContrib) {
+            let rewardStatus: 'eligible' | 'missed' | 'claimed' = 'eligible';
+            if (uc.refunded) {
+              rewardStatus = 'missed';
+            } else if (uc.campaign.claimed && uc.campaign.pledged >= uc.campaign.goal) {
+              // Creator withdrew — reward is considered claimed
+              rewardStatus = 'claimed';
+            } else if (Number(uc.campaign.endAt) <= currentTimeRef.current && uc.campaign.pledged < uc.campaign.goal) {
+              // Campaign failed — reward missed
+              rewardStatus = 'missed';
+            } else {
+              rewardStatus = 'eligible';
             }
+
+            rewards.push({
+              campaignId: cid,
+              campaign: uc.campaign,
+              reward: rw,
+              eligibleAmount: uc.amount,
+              claimed: rewardStatus === 'claimed',
+              status: rewardStatus,
+            });
           }
         }
       }
 
+      console.log(`✅ Loaded ${rewards.length} rewards for user`);
       setUserRewards(rewards);
     } catch {
       console.error("Failed to load user data");
     } finally {
       setIsLoadingUserData(false);
     }
-  }, [userAccount, campaigns, currentTime, loadAllCampaigns]);
+  }, [userAccount, campaigns, loadAllCampaigns]);
 
   // Load user data after campaigns are loaded
   useEffect(() => {
@@ -377,10 +394,23 @@ export default function Home() {
 
   async function handleCreateCampaign(goal: bigint, startAt: number, endAt: number, metadataURI: string) {
     try {
+      console.log("🚀 Starting campaign creation...");
+      
       const contract = await getCrowdfundContract();
       if (!contract) {
-        throw new Error("Contract not available - please check if contract is deployed and wallet is connected");
+        console.log("❌ Contract not available");
+        // Run verification to get detailed error
+        const verification = await verifyContractConnection();
+        console.log("Contract verification:", verification);
+        
+        if (!verification.success) {
+          throw new Error(`Contract not available: ${verification.message}`);
+        } else {
+          throw new Error("Contract not available - please check if contract is deployed and wallet is connected");
+        }
       }
+
+      console.log("✅ Contract available, checking balance...");
 
       // Check balance for gas
       const provider = getBrowserProvider();
@@ -393,14 +423,20 @@ export default function Home() {
         }
       }
 
+      console.log("✅ Balance sufficient, estimating gas...");
+
       // Preflight: estimate gas to catch reverts early with clearer reason
       try {
         await contract.createCampaign.estimateGas(goal, startAt, endAt, metadataURI);
+        console.log("✅ Gas estimation successful");
       } catch (err: unknown) {
+        console.log("❌ Gas estimation failed:", err);
         const parsed = parseTransactionError(err);
         toast.error(parsed.userFriendly, { duration: 6000 });
         return;
       }
+
+      console.log("🔄 Sending transaction...");
 
       await txToast(
         () => contract.createCampaign(goal, startAt, endAt, metadataURI),
@@ -412,11 +448,14 @@ export default function Home() {
         }
       );
 
+      console.log("✅ Campaign created successfully!");
+
       await new Promise(r => setTimeout(r, 800));
       await loadCampaigns();
       await loadUserData();
       setActiveTab('my-campaigns');
     } catch (error: unknown) {
+      console.log("❌ Campaign creation failed:", error);
       const parsed = parseTransactionError(error);
       // only show if txToast hasn't already shown one
       if ((error as { code?: number })?.code !== 4001) {
@@ -478,6 +517,41 @@ export default function Home() {
     setIsContributeModalOpen(true);
   }
 
+  async function handleCancelCampaign(campaign: Campaign) {
+    // Safety checks before sending tx
+    const now = Math.floor(Date.now() / 1000);
+    if (now >= Number(campaign.startAt)) {
+      toast.error("Cannot cancel: campaign has already started.", { duration: 5000 });
+      return;
+    }
+    if (campaign.pledged > 0n) {
+      toast.error("Cannot cancel: contributors have already pledged ETH.", { duration: 5000 });
+      return;
+    }
+
+    const contract = await getCrowdfundContract();
+    if (!contract) { toast.error("Contract not available"); return; }
+
+    try {
+      await contract.cancelCampaign.estimateGas(campaign.id);
+    } catch (e) {
+      const { parseTransactionError } = await import("@/utils/errorHandler");
+      toast.error(parseTransactionError(e).userFriendly, { duration: 6000 });
+      return;
+    }
+
+    try {
+      await txToast(() => contract.cancelCampaign(campaign.id), {
+        pending:    "Waiting for wallet confirmation...",
+        confirming: "Cancelling campaign on-chain...",
+        success:    "Campaign cancelled successfully.",
+        error:      "Failed to cancel campaign.",
+      });
+      await loadCampaigns();
+      await loadUserData();
+    } catch {}
+  }
+
   async function handleWithdrawFromCard(campaign: Campaign) {
     const contract = await getCrowdfundContract();
     if (!contract) { toast.error("Contract not available"); return; }
@@ -513,6 +587,34 @@ export default function Home() {
         return;
       }
     }
+
+    // Pre-flight checks with clear error messages
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const onChainCampaign = await contract.campaigns(campaign.id);
+      const endAt = Number(onChainCampaign.endAt);
+      const pledged = onChainCampaign.pledged;
+      const goal = onChainCampaign.goal;
+
+      if (now <= endAt) {
+        toast.error(`Campaign hasn't ended yet. Ends at ${new Date(endAt * 1000).toLocaleTimeString()}.`, { duration: 6000 });
+        return;
+      }
+      if (pledged >= goal) {
+        toast.error("Goal was reached — refunds are not available for successful campaigns.", { duration: 6000 });
+        return;
+      }
+
+      // Check user's on-chain contribution
+      const userContrib = await contract.getUserContribution(campaign.id, userAccount);
+      if (userContrib === 0n) {
+        toast.error("No on-chain contribution found for this campaign. The blockchain may have been reset — your contribution no longer exists on-chain.", { duration: 8000 });
+        return;
+      }
+    } catch (e) {
+      console.error("Pre-flight refund check failed:", e);
+    }
+
     try { await contract.refund.estimateGas(campaign.id); }
     catch (e) { const { parseTransactionError } = await import("@/utils/errorHandler"); toast.error(parseTransactionError(e).userFriendly, { duration: 6000 }); return; }
     try {
@@ -665,6 +767,55 @@ export default function Home() {
         </div>
       </header>
 
+      {/* Network Status Banner */}
+      {showNetworkBanner && networkInfo && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center">
+                <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  Wrong Network Detected
+                </p>
+                <p className="text-xs text-amber-700">
+                  Connected to {networkInfo.name} (Chain ID: {parseInt(networkInfo.chainId, 16)}). Switch to Localhost for full functionality.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={async () => {
+                const success = await switchToLocalhost();
+                if (success) {
+                  setShowNetworkBanner(false);
+                  toast.success("Switched to localhost network!");
+                }
+              }}
+              className="px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors mr-2"
+            >
+              Switch to Localhost
+            </button>
+            <button
+              onClick={async () => {
+                const result = await verifyContractConnection();
+                if (result.success) {
+                  toast.success(result.message);
+                } else {
+                  toast.error(result.message);
+                }
+                console.log("Contract verification result:", result);
+              }}
+              className="px-3 py-1.5 text-xs font-medium text-amber-800 bg-amber-100 border border-amber-300 rounded-lg hover:bg-amber-200 transition-colors"
+            >
+              Test Contract
+            </button>
+          </div>
+        </div>
+      )}
+
     <div className="flex min-h-[calc(100vh-3.5rem)]">
         {/* Sidebar */}
         {(userAccount || isGuestMode) && (
@@ -815,7 +966,7 @@ export default function Home() {
 
         {/* Main Content */}
         <div className="flex-1">
-          <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+          <main className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6 lg:px-8">
             {/* Welcome Section */}
             {!userAccount && !isGuestMode ? (
               <div className="text-center py-12 px-4">
@@ -909,7 +1060,7 @@ export default function Home() {
                       </div>
 
                       {/* Stats Grid */}
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
                         {[
                           { label: "Total Contributed", value: `${ethers.formatEther(totalContributed)} ETH`, icon: (<svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v12m-3-2.818l.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33" /></svg>), accent: "bg-indigo-50" },
                           { label: "Campaigns Backed", value: userContributions.length, icon: (<svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>), accent: "bg-emerald-50" },
@@ -927,7 +1078,7 @@ export default function Home() {
                       </div>
 
                       {/* Two-column: Trending + Activity */}
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
 
                         {/* Top / Trending Campaigns */}
                         <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -1398,17 +1549,22 @@ export default function Home() {
                                   const isEnded = currentTime > Number(campaign.endAt);
                                   const isGoalMet = campaign.pledged >= campaign.goal;
                                   const canWithdraw = isEnded && isGoalMet && !campaign.claimed;
-                                  const canAddReward = isUpcoming;
+                                  const canAddReward = isUpcoming; // only before campaign starts (contract rule)
+                                  // Cancel: only before start AND no pledges (contract rule)
+                                  const canCancel = isUpcoming && campaign.pledged === 0n;
+                                  // Cancelled campaigns have goal=0 and startAt=0
+                                  const isCancelled = campaign.goal === 0n && Number(campaign.startAt) === 0;
                                   const progressPct = Math.min(100, Number(campaign.pledged) * 100 / Number(campaign.goal));
 
                                   const statusConfig: Record<string, { label: string; classes: string }> = {
-                                    claimed:  { label: "Withdrawn",   classes: "bg-emerald-50 text-emerald-700" },
-                                    success:  { label: "Goal Met",    classes: "bg-blue-50 text-blue-700" },
-                                    failed:   { label: "Failed",      classes: "bg-red-50 text-red-600" },
-                                    upcoming: { label: "Not Started", classes: "bg-amber-50 text-amber-700" },
-                                    active:   { label: "Active",      classes: "bg-indigo-50 text-indigo-700" },
+                                    claimed:   { label: "Withdrawn",   classes: "bg-emerald-50 text-emerald-700" },
+                                    success:   { label: "Goal Met",    classes: "bg-blue-50 text-blue-700" },
+                                    failed:    { label: "Failed",      classes: "bg-red-50 text-red-600" },
+                                    upcoming:  { label: "Not Started", classes: "bg-amber-50 text-amber-700" },
+                                    active:    { label: "Active",      classes: "bg-indigo-50 text-indigo-700" },
+                                    cancelled: { label: "Cancelled",   classes: "bg-gray-100 text-gray-500" },
                                   };
-                                  const sc = statusConfig[status] ?? { label: status, classes: "bg-gray-100 text-gray-500" };
+                                  const sc = statusConfig[isCancelled ? 'cancelled' : status] ?? { label: status, classes: "bg-gray-100 text-gray-500" };
 
                                   return (
                                     <tr key={campaign.id} className="hover:bg-gray-50 transition-colors">
@@ -1459,14 +1615,22 @@ export default function Home() {
                                           >
                                             View Details
                                           </button>
-                                          {/* Add Reward */}
-                                          {canAddReward && (
+                                          {/* Add Reward — always visible for creator, disabled after campaign starts */}
+                                          {canAddReward ? (
                                             <button
                                               onClick={() => { setSelectedCampaign(campaign); setIsAddRewardModalOpen(true); }}
                                               className="px-3 py-1.5 text-xs font-semibold text-amber-600 border border-amber-200 rounded-lg hover:bg-amber-50 transition-colors"
                                             >
-                                              Add Reward
+                                              🎁 Add Reward
                                             </button>
+                                          ) : (
+                                            <span
+                                              title="Rewards can only be added before the campaign starts"
+                                              className="px-3 py-1.5 text-xs font-semibold text-gray-400 border border-gray-200 rounded-lg cursor-not-allowed"
+                                            >
+                                              🎁 Add Reward
+                                              <span className="ml-1 text-gray-300">(before start only)</span>
+                                            </span>
                                           )}
                                           {/* Withdraw */}
                                           {canWithdraw && (
@@ -1477,6 +1641,30 @@ export default function Home() {
                                               Withdraw
                                             </button>
                                           )}
+                                          {/* Cancel Campaign */}
+                                          {isCancelled ? (
+                                            <span className="px-3 py-1.5 text-xs font-semibold text-gray-400 border border-gray-200 rounded-lg">
+                                              Cancelled
+                                            </span>
+                                          ) : canCancel ? (
+                                            <button
+                                              onClick={() => {
+                                                if (window.confirm(`Cancel Campaign #${campaign.id}? This cannot be undone.`)) {
+                                                  handleCancelCampaign(campaign);
+                                                }
+                                              }}
+                                              className="px-3 py-1.5 text-xs font-semibold text-red-500 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                                            >
+                                              Cancel
+                                            </button>
+                                          ) : isUpcoming && campaign.pledged > 0n ? (
+                                            <span
+                                              title="Cannot cancel: contributors have already pledged ETH"
+                                              className="px-3 py-1.5 text-xs font-semibold text-gray-400 border border-gray-200 rounded-lg cursor-not-allowed"
+                                            >
+                                              Cancel (has pledges)
+                                            </span>
+                                          ) : null}
                                           {/* Copy Link */}
                                           <button
                                             onClick={() => {
@@ -1530,7 +1718,18 @@ export default function Home() {
                                 </svg>
                               </div>
                               <p className="text-sm font-semibold text-gray-700 mb-1">No rewards yet</p>
-                              <p className="text-xs text-gray-400 mb-4 max-w-xs">Contribute to campaigns with reward tiers to earn rewards. The more you contribute, the better the rewards.</p>
+                              <p className="text-xs text-gray-400 mb-3 max-w-xs">
+                                To earn rewards, contribute to a campaign that has reward tiers set up.
+                              </p>
+                              <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 mb-4 text-left max-w-sm">
+                                <p className="text-xs font-semibold text-amber-700 mb-1">How to get rewards:</p>
+                                <ol className="text-xs text-amber-600 space-y-1 list-decimal list-inside">
+                                  <li>Create a campaign with a start delay (e.g. 5 min)</li>
+                                  <li>Go to My Campaigns → click <strong>🎁 Add Reward</strong> before it starts</li>
+                                  <li>Browse Campaigns → find your campaign → Contribute ≥ the reward minimum</li>
+                                  <li>Come back here — your reward will appear</li>
+                                </ol>
+                              </div>
                               <button
                                 onClick={() => setActiveTab('campaigns')}
                                 className="px-4 py-2 text-xs font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors"

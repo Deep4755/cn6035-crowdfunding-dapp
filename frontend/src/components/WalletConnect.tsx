@@ -32,7 +32,7 @@ export default function WalletConnect({ onConnect, onDisconnect, externalAccount
     checkConnection();
     // Set up global listener for account changes
     if (typeof window !== "undefined") {
-      const ethereum = (window as { ethereum?: { on?: (event: string, callback: (accounts: string[]) => void) => void; removeListener?: (event: string, callback: (accounts: string[]) => void) => void } }).ethereum;
+      const ethereum = (window as { ethereum?: { on?: (event: string, callback: (...args: unknown[]) => void) => void; removeListener?: (event: string, callback: (...args: unknown[]) => void) => void } }).ethereum;
       if (ethereum?.on) {
         const handleAccountsChanged = (accounts: string[]) => {
           if (accounts.length > 0) {
@@ -41,10 +41,16 @@ export default function WalletConnect({ onConnect, onDisconnect, externalAccount
             handleAccountChange(null);
           }
         };
-        ethereum.on("accountsChanged", handleAccountsChanged);
+        const handleChainChanged = () => {
+          // Reload page on chain change to reset all state cleanly
+          window.location.reload();
+        };
+        ethereum.on("accountsChanged", handleAccountsChanged as (...args: unknown[]) => void);
+        ethereum.on("chainChanged", handleChainChanged as (...args: unknown[]) => void);
         return () => {
           if (ethereum.removeListener) {
-            ethereum.removeListener("accountsChanged", handleAccountsChanged);
+            ethereum.removeListener("accountsChanged", handleAccountsChanged as (...args: unknown[]) => void);
+            ethereum.removeListener("chainChanged", handleChainChanged as (...args: unknown[]) => void);
           }
         };
       }

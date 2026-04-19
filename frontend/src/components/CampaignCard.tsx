@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getUserDisplayName } from "@/utils/userMapping";
 import { ethers } from "ethers";
 import type { Campaign } from "@/types";
@@ -17,17 +17,18 @@ interface CampaignCardProps {
 
 export default function CampaignCard({ campaign, currentTime, onSelect, onContribute, onWithdraw, onRefund, userAddress, userContribution = 0n }: CampaignCardProps) {
   const [mounted, setMounted] = useState(false);
-  const [displayTime, setDisplayTime] = useState(currentTime);
+  // Own internal timer — updates every second without depending on parent re-renders
+  const [tick, setTick] = useState(0);
+  const timeRef = useRef(Math.floor(Date.now() / 1000));
 
-  // Prevent hydration errors by only rendering time-based content on client
   useEffect(() => {
     setMounted(true);
+    const interval = setInterval(() => {
+      timeRef.current = Math.floor(Date.now() / 1000);
+      setTick(t => t + 1); // minimal re-render just for this card's countdown
+    }, 1000);
+    return () => clearInterval(interval);
   }, []);
-
-  // Update displayTime whenever currentTime prop changes to force re-render
-  useEffect(() => {
-    setDisplayTime(currentTime);
-  }, [currentTime]);
 
   if (!mounted) {
     return (
@@ -43,8 +44,8 @@ export default function CampaignCard({ campaign, currentTime, onSelect, onContri
     );
   }
 
-  // Use displayTime (which updates) instead of currentTime prop directly
-  const timeToUse = displayTime || currentTime;
+  // Use own internal time — no dependency on parent currentTime prop
+  const timeToUse = timeRef.current;
   const isNotStarted = timeToUse < Number(campaign.startAt);
   const isActive = timeToUse >= Number(campaign.startAt) && timeToUse <= Number(campaign.endAt);
   const isEnded = timeToUse > Number(campaign.endAt);
