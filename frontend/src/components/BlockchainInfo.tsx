@@ -1,7 +1,6 @@
 "use client";
 import { useState, useEffect } from "react";
 import { getBrowserProvider, getCrowdfundAddress } from "@/lib/web3";
-import { ethers } from "ethers";
 
 interface BlockchainInfoProps {
   userAddress?: string | null;

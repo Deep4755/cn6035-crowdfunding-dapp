@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { ethers } from "ethers";
-import { toast } from "react-hot-toast";
 
 interface CreateCampaignModalProps {
   isOpen: boolean;

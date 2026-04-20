@@ -15,17 +15,15 @@ interface CampaignCardProps {
   userContribution?: bigint;
 }
 
-export default function CampaignCard({ campaign, currentTime, onSelect, onContribute, onWithdraw, onRefund, userAddress, userContribution = 0n }: CampaignCardProps) {
+export default function CampaignCard({ campaign, currentTime: _currentTime, onSelect, onContribute, onWithdraw, onRefund, userAddress, userContribution = 0n }: CampaignCardProps) { // eslint-disable-line @typescript-eslint/no-unused-vars
   const [mounted, setMounted] = useState(false);
   // Own internal timer — updates every second without depending on parent re-renders
-  const [tick, setTick] = useState(0);
   const timeRef = useRef(Math.floor(Date.now() / 1000));
 
   useEffect(() => {
     setMounted(true);
     const interval = setInterval(() => {
       timeRef.current = Math.floor(Date.now() / 1000);
-      setTick(t => t + 1); // minimal re-render just for this card's countdown
     }, 1000);
     return () => clearInterval(interval);
   }, []);

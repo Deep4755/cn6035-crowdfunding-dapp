@@ -1,5 +1,4 @@
 import { useState, useEffect } from "react";
-import { getUserDisplayName } from "@/utils/userMapping";
 import { ethers } from "ethers";
 import { getBrowserProvider } from "@/lib/web3";
 import { toast } from "react-hot-toast";
@@ -55,7 +54,7 @@ export default function WalletConnect({ onConnect, onDisconnect, externalAccount
         };
       }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function checkConnection() {
     const provider = getBrowserProvider();
@@ -65,7 +64,7 @@ export default function WalletConnect({ onConnect, onDisconnect, externalAccount
         if (accounts.length > 0) {
           await handleAccountChange(accounts[0]);
         }
-      } catch (error) {
+      } catch {
         console.log("No accounts found");
       }
     }

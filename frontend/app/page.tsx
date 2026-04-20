@@ -90,12 +90,13 @@ export default function Home() {
     
     checkNetwork();
     
-    if (typeof window !== "undefined" && (window as any).ethereum) {
+    if (typeof window !== "undefined" && (window as Window & { ethereum?: { on: (e: string, fn: () => void) => void; removeListener: (e: string, fn: () => void) => void } }).ethereum) {
+      const eth = (window as Window & { ethereum?: { on: (e: string, fn: () => void) => void; removeListener: (e: string, fn: () => void) => void } }).ethereum!;
       const handleChainChanged = () => { checkNetwork(); };
-      (window as any).ethereum.on('chainChanged', handleChainChanged);
+      eth.on('chainChanged', handleChainChanged);
       return () => {
         mounted = false;
-        (window as any).ethereum.removeListener('chainChanged', handleChainChanged);
+        eth.removeListener('chainChanged', handleChainChanged);
       };
     }
     return () => { mounted = false; };
@@ -166,7 +167,7 @@ export default function Home() {
             }
           }
         }
-      } catch (error) {
+      } catch {
         // If contract is not available, continue with sample campaigns only
         console.log("Contract not available, showing sample campaigns only");
       }
@@ -349,7 +350,7 @@ export default function Home() {
     } finally {
       setIsLoadingUserData(false);
     }
-  }, [userAccount, campaigns, loadAllCampaigns]);
+  }, [userAccount, campaigns, loadAllCampaigns]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load user data after campaigns are loaded
   useEffect(() => {
@@ -380,17 +381,6 @@ export default function Home() {
     if (base === 'failed' && entry.refunded) return 'refunded';
     return base;
   }
-
-  // Countdown utility functions
-  function getTimeRemaining(targetTime: number): { days: number; hours: number; minutes: number; seconds: number; total: number } {
-    const total = Math.max(0, targetTime - currentTime);
-    const days = Math.floor(total / 86400);
-    const hours = Math.floor((total % 86400) / 3600);
-    const minutes = Math.floor((total % 3600) / 60);
-    const seconds = total % 60;
-    return { days, hours, minutes, seconds, total };
-  }
-
 
   async function handleCreateCampaign(goal: bigint, startAt: number, endAt: number, metadataURI: string) {
     try {

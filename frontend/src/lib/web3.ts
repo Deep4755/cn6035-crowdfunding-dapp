@@ -141,7 +141,7 @@ export async function getNetworkInfo(): Promise<{ chainId: string; name: string 
 	}
 }
 
-export async function verifyContractConnection(): Promise<{success: boolean; message: string; details?: any}> {
+export async function verifyContractConnection(): Promise<{success: boolean; message: string; details?: unknown}> {
 	try {
 		console.log("🔍 Verifying contract connection...");
 		
